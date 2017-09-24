@@ -1,0 +1,4 @@
+#1/bin/bash
+nasm -f elf32 vig.asm
+ld -m elf_i386 -s -o vig vig.o
+./vig
