@@ -1,17 +1,15 @@
 SECTION .data
-	msg_get_key			db "Enter your key: ", 0
+	msg_get_key			db "[Viginere decryption] Enter your key: ", 0
 	msg_get_key_len		equ $ - msg_get_key
-
-	msg_done			db "Finish ",0xa
+	msg_done			db "[Viginere decryption] Decryption complete ",0xa
 	msg_done_len		equ $ - msg_done
 
-	input				db "./output.txt",0
-	output				db "./output2.txt",0
+	input				db "./cipher_text.txt",0
+	output				db "./decrypted_text.txt",0
 
-	termios:		times 36 db 0
-	ICANON:			equ 1<<1
-	ECHO:			equ 1<<3
-
+	termios:	times 36 db 0
+	ICANON:		equ 1<<1
+	ECHO:		equ 1<<3
 	sys_exit	equ 1
 	sys_read	equ 3
 	sys_write	equ 4
@@ -21,12 +19,10 @@ SECTION .data
 	stdout		equ 1
 
 
-
 SECTION .bss
-	plain_text:		resb 1024
-	buffer:			resb 1024
-	key:			resb 1024
-
+	plain_text:	resb 1024
+	buffer:		resb 1024
+	key:		resb 1024
 
 ;##########################################################
 ;MAIN
@@ -85,106 +81,30 @@ _start:
 	mov ebx, 0
 	int 80h
 
-
-;##########################################################
-;ENCRYPTION
-;##########################################################
-
-; edi - output file
-; eax - plain_text char
-; ebx - key char
-encrypt_char:
-
-	push edx
-	xor edx,edx
-
-	add eax, ebx
-	sub eax, 64
-
-	mov ebx, 96
-	div ebx
-	add edx, 32
-
-
-	mov [buffer], edx
-	mov eax, sys_write
-	mov ebx, edi
-	mov ecx, buffer
-	mov edx, 1
-	int 80h
-
-	pop edx
-	ret
-
-
-; edi - output file
-; esi - plain_text
-; edx - key
-encryption:
-	.start:
-		xor eax, eax
-		xor ebx, ebx
-
-	.next_symbol:
-
-		mov al, [esi]
-		mov bl, [edx]
-
-		call encrypt_char
-
-		inc esi
-		inc edx
-
-		cmp [esi], byte 10	; \n
-		je .exit
-
-		cmp [edx], byte 10	; \n
-		je .reset_key
-
-		jmp .next_symbol
-
-	.reset_key:
-
-		mov edx, key
-		jmp .next_symbol
-
-	.exit:
-
-		mov [buffer], byte 10
-
-		mov eax, sys_write
-		mov ebx, edi
-		mov ecx, buffer
-		mov edx, 1
-		int 80h
-
-		ret
-
-
 ;##########################################################
 ;DECRYPTION
 ;##########################################################
 
 ; edi - output file
-; eax - plain_text char
+; eax - cipher_text char
 ; ebx - key char
 decrypt_char:
 	.start:
 		push edx
 		xor edx,edx
 
-		;sub eax, 32
-		;sub ebx, 32
+		cmp eax, byte 10	;if new_line
+		je .write
 
 		cmp eax, ebx
 		jnl .continue
-		add eax, 96
+		add eax, 95
 
 	.continue:
-
 		sub eax, ebx
 		add eax, 32
 
+	.write:
 		mov [buffer], eax
 		mov eax, sys_write
 		mov ebx, edi
@@ -195,9 +115,8 @@ decrypt_char:
 		pop edx
 		ret
 
-
 ; edi - output file
-; esi - plain_text
+; esi - cipher_text
 ; edx - key
 decryption:
 	.start:
@@ -205,7 +124,6 @@ decryption:
 		xor ebx, ebx
 
 	.next_symbol:
-
 		mov al, [esi]
 		mov bl, [edx]
 
@@ -214,21 +132,19 @@ decryption:
 		inc esi
 		inc edx
 
-		cmp [esi], byte 0	; \0
+		cmp [esi], byte 0	; end of text
 		je .exit
 
-		cmp [edx], byte 10	; \n
+		cmp [edx], byte 0	; end of key
 		je .reset_key
 
 		jmp .next_symbol
 
 	.reset_key:
-
 		mov edx, key
 		jmp .next_symbol
 
 	.exit:
-
 		mov [buffer], byte 10
 
 		mov eax, sys_write
@@ -309,7 +225,6 @@ read_string:
 		mov esi,0
 
 	.next_symbol:
-
 		mov eax, sys_read	; 3
 		mov ebx, stdin		; 0
 		mov ecx, buffer
@@ -340,12 +255,10 @@ read_string:
 		jmp .next_symbol
 
 	.stop_read:
-		
-		mov [edi], byte 10	; \n
+		mov [edi], byte 0	; add endline
 		ret
 
 	.backspace:
-
 		cmp esi, 0
 		je .next_symbol
 	
@@ -365,7 +278,6 @@ read_string:
 		jmp .next_symbol
 
 get_key:
-
 	call canonical_off
 	call echo_off
 
